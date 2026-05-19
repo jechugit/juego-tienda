@@ -1,217 +1,390 @@
-# Tienda de Videojuegos - Microservicios
+# Proyecto Tienda de Videojuegos - Microservicios
 
-Proyecto de tienda de videojuegos hecho con Spring Boot, Spring Cloud Config,
-Eureka, API Gateway, MySQL/XAMPP y Flyway.
+Este proyecto implementa una tienda de videojuegos usando una arquitectura de microservicios con Spring Boot, Spring Cloud, Eureka, Config Server, API Gateway, OpenFeign, JPA, Flyway y MySQL.
 
-## 1. Servicios del proyecto
+La aplicacion esta separada por responsabilidades: catalogo de videojuegos, usuarios, autenticacion, carrito, pagos, pedidos, resenas e inventario. Los microservicios se descubren entre si usando Eureka y se consumen desde un unico punto de entrada mediante API Gateway.
 
-Infraestructura:
-
-- `config-server`: entrega configuracion centralizada desde `config-microservicios`.
-- `eureka`: registra los microservicios.
-- `api-gateway`: entrada principal para probar todo desde Postman.
-
-Microservicios:
-
-- `usuarios`
-- `videojuegos`
-- `inventario`
-- `carrito`
-- `authentication`
-- `pagos`
-- `pedidos`
-- `resenas`
-
-## 2. Requisitos
-
-Necesitas tener:
-
-- Java 25.
-- IntelliJ IDEA.
-- XAMPP con MySQL activo.
-- Postman.
-- Puerto `8888` libre para Config Server.
-- Puerto `8761` libre para Eureka.
-- Puerto `8080` libre para API Gateway.
-
-## 3. Base de datos con Flyway
-
-La base de datos se llama:
+## Arquitectura General
 
 ```text
-tiendajuegos
+Cliente / Postman / Navegador
+        |
+        v
+API Gateway - puerto 8080
+        |
+        v
+Eureka - descubrimiento de servicios - puerto 8761
+        |
+        +--> videojuegos
+        +--> usuarios
+        +--> authentication
+        +--> carrito
+        +--> pagos
+        +--> pedidos
+        +--> resenas
+        +--> inventario
+
+Config Server - puerto 8888
+        |
+        v
+config-microservicios/*.properties
 ```
 
-Cada microservicio tiene migraciones Flyway en:
+## Componentes del Proyecto
+
+| Carpeta | Funcion |
+| --- | --- |
+| `eureka` | Servidor Eureka. Permite que los microservicios se registren y se encuentren entre si. |
+| `config-server` | Servidor centralizado de configuracion. Lee los archivos de `config-microservicios`. |
+| `api-gateway` | Entrada principal del sistema. Redirige las rutas publicas hacia cada microservicio. |
+| `videojuegos` | Gestiona el catalogo de videojuegos. |
+| `usuarios` | Gestiona usuarios, roles y datos personales. |
+| `authentication` | Gestiona registro, login y credenciales. |
+| `carrito` | Gestiona items del carrito por usuario. |
+| `pagos` | Gestiona pagos a partir del resumen del carrito. |
+| `pedidos` | Gestiona pedidos y reportes de pedidos. |
+| `resenas` | Gestiona resenas y reportes de resenas. |
+| `inventario` | Gestiona stock de videojuegos. |
+| `config-microservicios` | Contiene la configuracion externa de los microservicios. |
+
+## Tecnologias Usadas
+
+- Java 25
+- Spring Boot 4.0.6
+- Spring Cloud 2025.1.1
+- Spring Cloud Config Server
+- Spring Cloud Netflix Eureka
+- Spring Cloud Gateway WebFlux
+- Spring Cloud OpenFeign
+- Spring Data JPA
+- Spring Validation
+- Flyway
+- MySQL
+- Lombok
+- Maven Wrapper
+
+## Requisitos
+
+Antes de ejecutar el proyecto necesitas:
+
+- Java 25 instalado.
+- MySQL activo en `localhost:3306`.
+- Maven no es obligatorio porque cada microservicio trae su propio `mvnw`.
+- Usuario de base de datos `root`.
+- Password vacia para MySQL, o configurar otra usando variables de entorno.
+
+Por defecto los microservicios usan:
+
+```properties
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+```
+
+Cada microservicio crea su propia base de datos automaticamente con `createDatabaseIfNotExist=true`.
+
+## Bases de Datos
+
+El proyecto usa una base de datos por microservicio:
+
+| Microservicio | Base de datos |
+| --- | --- |
+| `videojuegos` | `bd_videojuegos` |
+| `usuarios` | `bd_usuarios` |
+| `authentication` | `bd_auth` |
+| `carrito` | `bd_carrito` |
+| `pagos` | `bd_pagos` |
+| `pedidos` | `bd_pedidos` |
+| `resenas` | `bd_resenas` |
+| `inventario` | `bd_inventario` |
+
+Las tablas y datos iniciales se cargan con Flyway desde:
 
 ```text
 src/main/resources/db/migration
 ```
 
-Cuando levantas los microservicios, Flyway crea automaticamente las tablas y
-carga datos iniciales.
+## Orden de Ejecucion
 
-Ejemplos de tablas que se crean:
+Es importante levantar los servicios en este orden.
 
-```text
-usuario
-video_juego
-inventario
-item_carrito
-credencial
-pago
-pedidos
-resenas
+### 1. Levantar Eureka
+
+```bash
+cd eureka
+./mvnw spring-boot:run
 ```
 
-Tambien se crean tablas de historial Flyway por servicio:
+Eureka quedara disponible en:
 
 ```text
-flyway_schema_history_usuarios
-flyway_schema_history_videojuegos
-flyway_schema_history_inventario
-flyway_schema_history_carrito
-flyway_schema_history_authentication
-flyway_schema_history_pagos
-flyway_schema_history_pedidos
-flyway_schema_history_resenas
+http://localhost:8761
 ```
 
-Esto evita conflictos porque todos los microservicios usan la misma base
-`tiendajuegos`.
+### 2. Levantar Config Server
 
-## 4. Probar Flyway desde cero
-
-1. Abre XAMPP.
-2. Activa MySQL.
-3. En phpMyAdmin borra solo la base:
-
-```text
-tiendajuegos
+```bash
+cd config-server
+./mvnw spring-boot:run
 ```
 
-No borres bases internas como `mysql`, `phpmyadmin`, `information_schema` o
-`performance_schema`.
-
-Despues levanta los servicios en el orden indicado abajo. El primer
-microservicio que se conecte creara la base `tiendajuegos`, y Flyway creara las
-tablas.
-
-## 5. Orden para levantar los servicios
-
-En IntelliJ, levanta las aplicaciones en este orden:
-
-1. `config-server`
-2. `eureka`
-3. `usuarios`
-4. `videojuegos`
-5. `inventario`
-6. `carrito`
-7. `authentication`
-8. `pagos`
-9. `pedidos`
-10. `resenas`
-11. `api-gateway`
-
-El gateway va al final porque necesita que los microservicios ya esten
-registrados en Eureka.
-
-## 6. URLs importantes
-
-Config Server:
+Config Server quedara disponible en:
 
 ```text
 http://localhost:8888
 ```
 
-Eureka:
+Ejemplo para revisar configuracion:
 
 ```text
-http://localhost:8761
+http://localhost:8888/videojuegos/default
+http://localhost:8888/api-gateway/default
 ```
 
-API Gateway:
+### 3. Levantar los Microservicios de Negocio
+
+Abrir una terminal por cada microservicio:
+
+```bash
+cd videojuegos
+./mvnw spring-boot:run
+```
+
+```bash
+cd usuarios
+./mvnw spring-boot:run
+```
+
+```bash
+cd authentication
+./mvnw spring-boot:run
+```
+
+```bash
+cd carrito
+./mvnw spring-boot:run
+```
+
+```bash
+cd pagos
+./mvnw spring-boot:run
+```
+
+```bash
+cd pedidos
+./mvnw spring-boot:run
+```
+
+```bash
+cd resenas
+./mvnw spring-boot:run
+```
+
+```bash
+cd inventario
+./mvnw spring-boot:run
+```
+
+### 4. Levantar API Gateway
+
+```bash
+cd api-gateway
+./mvnw spring-boot:run
+```
+
+El gateway quedara disponible en:
 
 ```text
 http://localhost:8080
 ```
 
-Puertos fijos de los microservicios:
+## Puertos
 
 | Servicio | Puerto |
-| --- | ---: |
-| `api-gateway` | `8080` |
-| `videojuegos` | `8081` |
-| `usuarios` | `8082` |
-| `inventario` | `8083` |
-| `carrito` | `8084` |
-| `authentication` | `8085` |
-| `pagos` | `8086` |
-| `pedidos` | `8087` |
-| `resenas` | `8088` |
+| --- | --- |
+| Eureka | `8761` |
+| Config Server | `8888` |
+| API Gateway | `8080` |
+| Microservicios de negocio | Puerto aleatorio, configurado con `server.port=0` |
 
-En Postman se recomienda probar siempre por el gateway:
+Los microservicios usan puerto aleatorio porque se comunican por nombre mediante Eureka, por ejemplo:
+
+```text
+lb://videojuegos
+lb://usuarios
+lb://carrito
+```
+
+## Rutas del API Gateway
+
+Todas estas rutas se consumen desde:
 
 ```text
 http://localhost:8080
 ```
 
-## 7. Verificar que la configuracion funciona
+| Ruta | Microservicio |
+| --- | --- |
+| `/videojuegos` | `videojuegos` |
+| `/usuarios` | `usuarios` |
+| `/auth` | `authentication` |
+| `/carrito` | `carrito` |
+| `/pagos` | `pagos` |
+| `/pedidos` | `pedidos` |
+| `/resenas` | `resenas` |
+| `/inventario` | `inventario` |
 
-Config Server:
+## Flujo Principal del Sistema
 
-```http
-GET http://localhost:8888/videojuegos/default
-GET http://localhost:8888/usuarios/default
-GET http://localhost:8888/api-gateway/default
-```
+Un flujo normal de uso puede ser:
 
-Eureka:
+1. Registrar un usuario en `/auth/registro`.
+2. Iniciar sesion en `/auth/login`.
+3. Consultar videojuegos en `/videojuegos`.
+4. Agregar productos al carrito en `/carrito`.
+5. Consultar resumen del carrito en `/carrito/usuario/{usuarioId}/resumen`.
+6. Crear un pago en `/pagos`.
+7. El servicio de pagos aprueba el pago y vacia el carrito.
+8. Opcionalmente crear pedidos en `/pedidos`.
+9. Opcionalmente crear resenas en `/resenas`.
+10. Consultar o actualizar stock en `/inventario`.
 
-```http
-GET http://localhost:8761
-```
+Importante: el pago no crea automaticamente un pedido ni descuenta inventario. Esas operaciones existen en servicios separados.
 
-Tambien puedes entrar desde el navegador a:
+## Microservicio Videojuegos
 
-```text
-http://localhost:8761
-```
+Gestiona el catalogo de videojuegos.
 
-Deberias ver registrados servicios como:
+### Modelo principal
 
-```text
-USUARIOS
-VIDEOJUEGOS
-INVENTARIO
-CARRITO
-AUTHENTICATION
-PAGOS
-PEDIDOS
-RESENAS
-API-GATEWAY
-```
+Campos relevantes:
 
-## 8. Login en Postman
+- `id`
+- `nombre`
+- `categoria`
+- `precio`
+- `plataforma`
+- `descripcion`
+- `desarrollador`
+- `fechaLanzamiento`
+- `imagenUrl`
+- `activo`
 
-Metodo:
+### Endpoints
 
-```http
-POST http://localhost:8080/auth/login
-```
+| Metodo | Ruta | Funcion |
+| --- | --- | --- |
+| `GET` | `/videojuegos` | Lista todos los videojuegos. |
+| `GET` | `/videojuegos/{id}` | Busca un videojuego por ID. |
+| `POST` | `/videojuegos` | Crea un videojuego. |
+| `PUT` | `/videojuegos/{id}` | Actualiza un videojuego. |
+| `DELETE` | `/videojuegos/{id}` | Elimina un videojuego. |
+| `GET` | `/videojuegos/buscar?nombre=...` | Busca por nombre. |
+| `GET` | `/videojuegos/buscar?categoria=...` | Busca por categoria. |
+| `GET` | `/videojuegos/buscar?plataforma=...` | Busca por plataforma. |
 
-En Postman:
-
-- Body
-- raw
-- JSON
-
-Body:
+### Ejemplo de creacion
 
 ```json
 {
-  "correo": "admin@tiendajuegos.cl",
-  "password": "password"
+  "nombre": "Hades",
+  "categoria": "Roguelike",
+  "precio": 14990,
+  "plataforma": "PC",
+  "descripcion": "Juego de accion roguelike.",
+  "desarrollador": "Supergiant Games",
+  "fechaLanzamiento": "2020-09-17",
+  "imagenUrl": "https://example.com/hades.jpg",
+  "activo": true
+}
+```
+
+## Microservicio Usuarios
+
+Gestiona los usuarios del sistema.
+
+### Modelo principal
+
+Campos relevantes:
+
+- `id`
+- `nombre`
+- `apellido`
+- `correo`
+- `telefono`
+- `direccion`
+- `rol`
+- `activo`
+- `fechaRegistro`
+
+### Endpoints
+
+| Metodo | Ruta | Funcion |
+| --- | --- | --- |
+| `GET` | `/usuarios` | Lista todos los usuarios. |
+| `GET` | `/usuarios?activos=true` | Lista solo usuarios activos. |
+| `GET` | `/usuarios/{id}` | Busca usuario por ID. |
+| `GET` | `/usuarios/buscar?correo=...` | Busca usuario por correo. |
+| `POST` | `/usuarios` | Crea un usuario. |
+| `PUT` | `/usuarios/{id}` | Actualiza un usuario. |
+| `DELETE` | `/usuarios/{id}` | Desactiva un usuario. |
+
+### Ejemplo de creacion
+
+```json
+{
+  "nombre": "Juan",
+  "apellido": "Perez",
+  "correo": "juan@tiendajuegos.cl",
+  "telefono": "+56912345678",
+  "direccion": "Santiago",
+  "rol": "CLIENTE",
+  "activo": true
+}
+```
+
+## Microservicio Authentication
+
+Gestiona registro, login y credenciales.
+
+Este servicio se comunica con `usuarios` usando OpenFeign:
+
+- Al registrarse, crea primero el usuario en `usuarios`.
+- Luego guarda la credencial en `bd_auth`.
+- La password se guarda encriptada con BCrypt.
+
+### Endpoints
+
+| Metodo | Ruta | Funcion |
+| --- | --- | --- |
+| `POST` | `/auth/registro` | Registra usuario y credencial. |
+| `POST` | `/auth/login` | Valida correo y password. |
+| `GET` | `/auth/credenciales` | Lista credenciales. |
+| `GET` | `/auth/credenciales/{id}` | Busca credencial por ID. |
+| `PUT` | `/auth/credenciales/{id}/password` | Cambia password. |
+| `DELETE` | `/auth/credenciales/{id}` | Desactiva credencial. |
+
+### Ejemplo de registro
+
+```json
+{
+  "nombre": "Juan",
+  "apellido": "Perez",
+  "correo": "juan@tiendajuegos.cl",
+  "telefono": "+56912345678",
+  "direccion": "Santiago",
+  "rol": "CLIENTE",
+  "password": "123456"
+}
+```
+
+### Ejemplo de login
+
+```json
+{
+  "correo": "juan@tiendajuegos.cl",
+  "password": "123456"
 }
 ```
 
@@ -219,125 +392,236 @@ Respuesta esperada:
 
 ```json
 {
-  "usuarioId": 1,
-  "correo": "admin@tiendajuegos.cl",
-  "rol": "ADMIN",
+  "usuarioId": 5,
+  "correo": "juan@tiendajuegos.cl",
+  "rol": "CLIENTE",
   "mensaje": "Login exitoso",
   "autenticado": true
 }
 ```
 
-## 9. Endpoints principales
+Nota: este proyecto no genera JWT ni maneja sesiones. El login solo valida credenciales y devuelve una respuesta simple.
 
-### Usuarios
+## Microservicio Carrito
 
-Listar usuarios:
+Gestiona los productos agregados al carrito por usuario.
 
-```http
-GET http://localhost:8080/usuarios
-```
+Este servicio se comunica con `videojuegos` usando OpenFeign para validar que el videojuego exista y obtener su precio.
 
-Buscar por ID:
+### Modelo principal
 
-```http
-GET http://localhost:8080/usuarios/1
-```
+Campos relevantes:
 
-Buscar por correo:
+- `id`
+- `usuarioId`
+- `videojuegoId`
+- `cantidad`
+- `precioUnitario`
+- `subtotal`
+- `fechaAgregado`
 
-```http
-GET http://localhost:8080/usuarios/buscar?correo=admin@tiendajuegos.cl
-```
+### Endpoints
 
-Crear usuario:
+| Metodo | Ruta | Funcion |
+| --- | --- | --- |
+| `GET` | `/carrito/usuario/{usuarioId}` | Lista items del carrito de un usuario. |
+| `GET` | `/carrito/usuario/{usuarioId}/resumen` | Muestra items y total del carrito. |
+| `GET` | `/carrito/{id}` | Busca item por ID. |
+| `POST` | `/carrito` | Agrega un videojuego al carrito. |
+| `PUT` | `/carrito/{id}/cantidad` | Actualiza cantidad de un item. |
+| `DELETE` | `/carrito/{id}` | Elimina un item. |
+| `DELETE` | `/carrito/usuario/{usuarioId}` | Vacia el carrito de un usuario. |
 
-```http
-POST http://localhost:8080/usuarios
-```
-
-Body:
-
-```json
-{
-  "nombre": "Pedro",
-  "apellido": "Gonzalez",
-  "correo": "pedro@tiendajuegos.cl",
-  "telefono": "+56955555555",
-  "direccion": "Santiago",
-  "rol": "CLIENTE",
-  "activo": true
-}
-```
-
-### Videojuegos
-
-Listar videojuegos:
-
-```http
-GET http://localhost:8080/videojuegos
-```
-
-Buscar por ID:
-
-```http
-GET http://localhost:8080/videojuegos/1
-```
-
-Buscar por nombre:
-
-```http
-GET http://localhost:8080/videojuegos/buscar?nombre=Portal
-```
-
-Crear videojuego:
-
-```http
-POST http://localhost:8080/videojuegos
-```
-
-Body:
+### Ejemplo de agregar item
 
 ```json
 {
-  "nombre": "DOOM Eternal",
-  "categoria": "Shooter",
-  "precio": 29990,
-  "plataforma": "PC",
-  "descripcion": "Shooter rapido con accion intensa.",
-  "desarrollador": "id Software",
-  "fechaLanzamiento": "2020-03-20",
-  "imagenUrl": "https://cdn.cloudflare.steamstatic.com/steam/apps/782330/header.jpg",
-  "activo": true
+  "usuarioId": 2,
+  "videojuegoId": 1,
+  "cantidad": 1
 }
 ```
 
-### Inventario
+Si el item ya existe para ese usuario y videojuego, el sistema suma la cantidad.
 
-Listar inventario:
+### Ejemplo de actualizar cantidad
 
-```http
-GET http://localhost:8080/inventario
+```json
+{
+  "cantidad": 3
+}
 ```
 
-Buscar inventario por videojuego:
+## Microservicio Pagos
 
-```http
-GET http://localhost:8080/inventario/videojuego/1
+Gestiona pagos de usuarios.
+
+Este servicio se comunica con `carrito` usando OpenFeign:
+
+- Consulta el resumen del carrito.
+- Valida que tenga total mayor a 0.
+- Crea un pago con estado `APROBADO`.
+- Genera un codigo de transaccion.
+- Vacia el carrito del usuario.
+
+### Modelo principal
+
+Campos relevantes:
+
+- `id`
+- `usuarioId`
+- `monto`
+- `metodoPago`
+- `estado`
+- `codigoTransaccion`
+- `fechaPago`
+
+### Endpoints
+
+| Metodo | Ruta | Funcion |
+| --- | --- | --- |
+| `GET` | `/pagos` | Lista todos los pagos. |
+| `GET` | `/pagos/{id}` | Busca pago por ID. |
+| `GET` | `/pagos/usuario/{usuarioId}` | Lista pagos de un usuario. |
+| `POST` | `/pagos` | Crea un pago desde el carrito. |
+| `PUT` | `/pagos/{id}/estado` | Cambia estado del pago. |
+| `PUT` | `/pagos/{id}/anular` | Anula un pago. |
+| `DELETE` | `/pagos/{id}` | Elimina un pago. |
+
+### Ejemplo de crear pago
+
+```json
+{
+  "usuarioId": 2,
+  "metodoPago": "TARJETA"
+}
 ```
 
-Ver bajo stock:
+Estados usados por el proyecto:
 
-```http
-GET http://localhost:8080/inventario/bajo-stock
+- `APROBADO`
+- `ANULADO`
+
+Tambien se puede enviar otro estado mediante `/pagos/{id}/estado`.
+
+## Microservicio Pedidos
+
+Gestiona pedidos y reportes.
+
+Este servicio valida que el usuario exista llamando a `usuarios` con OpenFeign.
+
+### Modelo principal
+
+Campos relevantes:
+
+- `id`
+- `usuarioId`
+- `nombreJuego`
+- `precio`
+- `fechaPedido`
+
+### Endpoints
+
+| Metodo | Ruta | Funcion |
+| --- | --- | --- |
+| `GET` | `/pedidos` | Lista todos los pedidos. |
+| `GET` | `/pedidos/{id}` | Busca pedido por ID. |
+| `POST` | `/pedidos` | Crea un pedido. |
+| `PUT` | `/pedidos/{id}` | Actualiza un pedido. |
+| `DELETE` | `/pedidos/{id}` | Elimina un pedido. |
+| `GET` | `/pedidos/detalle` | Lista pedidos con datos del usuario. |
+| `GET` | `/pedidos/usuario/{usuarioId}` | Lista pedidos de un usuario. |
+| `GET` | `/pedidos/reportes/fecha?desde=YYYY-MM-DD&hasta=YYYY-MM-DD` | Reporte por rango de fecha. |
+| `GET` | `/pedidos/reportes/precio?minimo=...&maximo=...` | Reporte por rango de precio. |
+
+### Ejemplo de creacion
+
+```json
+{
+  "usuarioId": 2,
+  "nombreJuego": "Cyberpunk 2077",
+  "precio": 37990,
+  "fechaPedido": "2026-05-19"
+}
 ```
 
-Crear inventario:
+## Microservicio Resenas
 
-```http
-POST http://localhost:8080/inventario
+Gestiona resenas de videojuegos.
+
+Este servicio valida que el usuario exista llamando a `usuarios` con OpenFeign.
+
+### Modelo principal
+
+Campos relevantes:
+
+- `id`
+- `usuarioId`
+- `nombreJuego`
+- `comentario`
+- `puntuacion`
+- `fechaResena`
+
+### Endpoints
+
+| Metodo | Ruta | Funcion |
+| --- | --- | --- |
+| `GET` | `/resenas` | Lista todas las resenas. |
+| `GET` | `/resenas/{id}` | Busca resena por ID. |
+| `POST` | `/resenas` | Crea una resena. |
+| `PUT` | `/resenas/{id}` | Actualiza una resena. |
+| `DELETE` | `/resenas/{id}` | Elimina una resena. |
+| `GET` | `/resenas/detalle` | Lista resenas con datos del usuario. |
+| `GET` | `/resenas/usuario/{usuarioId}` | Lista resenas de un usuario. |
+| `GET` | `/resenas/reportes/fecha?desde=YYYY-MM-DD&hasta=YYYY-MM-DD` | Reporte por rango de fecha. |
+| `GET` | `/resenas/reportes/puntuacion?min=1&max=5` | Reporte por puntuacion. |
+
+### Ejemplo de creacion
+
+```json
+{
+  "usuarioId": 2,
+  "nombreJuego": "Cyberpunk 2077",
+  "comentario": "Muy buen juego.",
+  "puntuacion": 5,
+  "fechaResena": "2026-05-19"
+}
 ```
 
-Body:
+La puntuacion debe estar entre `1` y `5`.
+
+## Microservicio Inventario
+
+Gestiona stock de videojuegos.
+
+Este servicio se comunica con `videojuegos` usando OpenFeign para validar que el videojuego exista.
+
+### Modelo principal
+
+Campos relevantes:
+
+- `id`
+- `videojuegoId`
+- `stock`
+- `stockMinimo`
+- `fechaActualizacion`
+
+### Endpoints
+
+| Metodo | Ruta | Funcion |
+| --- | --- | --- |
+| `GET` | `/inventario` | Lista todo el inventario. |
+| `GET` | `/inventario/bajo-stock` | Lista inventarios con stock menor o igual al minimo. |
+| `GET` | `/inventario/{id}` | Busca inventario por ID. |
+| `GET` | `/inventario/videojuego/{videojuegoId}` | Busca inventario por videojuego. |
+| `POST` | `/inventario` | Crea inventario para un videojuego. |
+| `PUT` | `/inventario/{id}` | Actualiza inventario. |
+| `PUT` | `/inventario/videojuego/{videojuegoId}/stock` | Reemplaza el stock actual. |
+| `PUT` | `/inventario/videojuego/{videojuegoId}/entrada` | Aumenta stock. |
+| `PUT` | `/inventario/videojuego/{videojuegoId}/salida` | Disminuye stock. |
+| `DELETE` | `/inventario/{id}` | Elimina inventario. |
+
+### Ejemplo de crear inventario
 
 ```json
 {
@@ -347,85 +631,15 @@ Body:
 }
 ```
 
-Actualizar stock exacto:
-
-```http
-PUT http://localhost:8080/inventario/videojuego/1/stock
-```
-
-Body:
+### Ejemplo de actualizar stock directo
 
 ```json
 {
-  "stock": 25
+  "stock": 15
 }
 ```
 
-Entrada de stock:
-
-```http
-PUT http://localhost:8080/inventario/videojuego/1/entrada
-```
-
-Body:
-
-```json
-{
-  "cantidad": 5
-}
-```
-
-Salida de stock:
-
-```http
-PUT http://localhost:8080/inventario/videojuego/1/salida
-```
-
-Body:
-
-```json
-{
-  "cantidad": 2
-}
-```
-
-### Carrito
-
-Ver carrito de usuario:
-
-```http
-GET http://localhost:8080/carrito/usuario/2
-```
-
-Ver resumen del carrito:
-
-```http
-GET http://localhost:8080/carrito/usuario/2/resumen
-```
-
-Agregar item:
-
-```http
-POST http://localhost:8080/carrito
-```
-
-Body:
-
-```json
-{
-  "usuarioId": 2,
-  "videojuegoId": 24,
-  "cantidad": 1
-}
-```
-
-Actualizar cantidad:
-
-```http
-PUT http://localhost:8080/carrito/1/cantidad
-```
-
-Body:
+### Ejemplo de entrada o salida de stock
 
 ```json
 {
@@ -433,344 +647,230 @@ Body:
 }
 ```
 
-Vaciar carrito de usuario:
+Si se intenta hacer una salida mayor al stock disponible, el servicio responde con error de conflicto.
 
-```http
-DELETE http://localhost:8080/carrito/usuario/2
+## Datos Iniciales
+
+El proyecto carga datos iniciales con Flyway:
+
+- Usuarios de ejemplo, incluyendo `admin@tiendajuegos.cl`.
+- Videojuegos de ejemplo.
+- Inventario inicial.
+- Carrito inicial para usuario `2`.
+- Pagos iniciales.
+- Pedidos iniciales.
+- Resenas iniciales.
+
+## Ejemplos Rapidos con curl
+
+Listar videojuegos:
+
+```bash
+curl http://localhost:8080/videojuegos
 ```
 
-### Pagos
+Buscar videojuego por ID:
 
-Listar pagos:
-
-```http
-GET http://localhost:8080/pagos
+```bash
+curl http://localhost:8080/videojuegos/1
 ```
 
-Pagos por usuario:
+Registrar usuario:
 
-```http
-GET http://localhost:8080/pagos/usuario/2
+```bash
+curl -X POST http://localhost:8080/auth/registro \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "Juan",
+    "apellido": "Perez",
+    "correo": "juan@tiendajuegos.cl",
+    "telefono": "+56912345678",
+    "direccion": "Santiago",
+    "rol": "CLIENTE",
+    "password": "123456"
+  }'
 ```
 
-Crear pago desde carrito:
+Login:
 
-```http
-POST http://localhost:8080/pagos
+```bash
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "correo": "juan@tiendajuegos.cl",
+    "password": "123456"
+  }'
 ```
 
-Body:
+Agregar item al carrito:
 
-```json
-{
-  "usuarioId": 2,
-  "metodoPago": "TARJETA"
-}
+```bash
+curl -X POST http://localhost:8080/carrito \
+  -H "Content-Type: application/json" \
+  -d '{
+    "usuarioId": 2,
+    "videojuegoId": 1,
+    "cantidad": 1
+  }'
 ```
 
-Actualizar estado:
+Ver resumen del carrito:
 
-```http
-PUT http://localhost:8080/pagos/1/estado
+```bash
+curl http://localhost:8080/carrito/usuario/2/resumen
 ```
 
-Body:
+Crear pago:
 
-```json
-{
-  "estado": "APROBADO"
-}
-```
-
-Anular pago:
-
-```http
-PUT http://localhost:8080/pagos/1/anular
-```
-
-### Pedidos
-
-Listar pedidos:
-
-```http
-GET http://localhost:8080/pedidos
-```
-
-Pedidos con detalle de usuario:
-
-```http
-GET http://localhost:8080/pedidos/detalle
-```
-
-Pedidos por usuario:
-
-```http
-GET http://localhost:8080/pedidos/usuario/2
-```
-
-Crear pedido:
-
-```http
-POST http://localhost:8080/pedidos
-```
-
-Body:
-
-```json
-{
-  "usuarioId": 2,
-  "nombreJuego": "Portal 2",
-  "precio": 9990,
-  "fechaPedido": "2026-05-17"
-}
-```
-
-### Resenas
-
-Listar resenas:
-
-```http
-GET http://localhost:8080/resenas
-```
-
-Resenas con detalle de usuario:
-
-```http
-GET http://localhost:8080/resenas/detalle
-```
-
-Resenas por usuario:
-
-```http
-GET http://localhost:8080/resenas/usuario/2
+```bash
+curl -X POST http://localhost:8080/pagos \
+  -H "Content-Type: application/json" \
+  -d '{
+    "usuarioId": 2,
+    "metodoPago": "TARJETA"
+  }'
 ```
 
 Crear resena:
 
-```http
-POST http://localhost:8080/resenas
+```bash
+curl -X POST http://localhost:8080/resenas \
+  -H "Content-Type: application/json" \
+  -d '{
+    "usuarioId": 2,
+    "nombreJuego": "Cyberpunk 2077",
+    "comentario": "Muy buen juego.",
+    "puntuacion": 5,
+    "fechaResena": "2026-05-19"
+  }'
 ```
 
-Body:
-
-```json
-{
-  "usuarioId": 2,
-  "nombreJuego": "Portal 2",
-  "comentario": "Muy buen juego de puzzles.",
-  "puntuacion": 5,
-  "fechaResena": "2026-05-17"
-}
-```
-
-## 10. Flujo de prueba recomendado en Postman
-
-1. Login:
-
-```http
-POST http://localhost:8080/auth/login
-```
-
-2. Ver juegos:
-
-```http
-GET http://localhost:8080/videojuegos
-```
-
-3. Ver inventario:
-
-```http
-GET http://localhost:8080/inventario
-```
-
-4. Agregar juego al carrito:
-
-```http
-POST http://localhost:8080/carrito
-```
-
-Body:
-
-```json
-{
-  "usuarioId": 2,
-  "videojuegoId": 24,
-  "cantidad": 1
-}
-```
-
-5. Ver resumen:
-
-```http
-GET http://localhost:8080/carrito/usuario/2/resumen
-```
-
-6. Pagar carrito:
-
-```http
-POST http://localhost:8080/pagos
-```
-
-Body:
-
-```json
-{
-  "usuarioId": 2,
-  "metodoPago": "TARJETA"
-}
-```
-
-7. Ver pagos:
-
-```http
-GET http://localhost:8080/pagos
-```
-
-## 11. Datos iniciales importantes
-
-Usuarios iniciales:
-
-```text
-1 - admin@tiendajuegos.cl - ADMIN
-2 - jesus@tiendajuegos.cl - CLIENTE
-3 - camila@tiendajuegos.cl - CLIENTE
-4 - matias@tiendajuegos.cl - CLIENTE
-```
-
-Credencial inicial:
-
-```text
-correo: admin@tiendajuegos.cl
-password: password
-```
-
-Videojuegos iniciales:
-
-```text
-35 videojuegos cargados por Flyway
-```
-
-Incluye juegos como:
-
-```text
-Cyberpunk 2077
-Minecraft
-God of War Ragnarok
-Portal
-Portal 2
-Half-Life
-Half-Life 2
-Left 4 Dead 2
-Hollow Knight
-Terraria
-Cuphead
-```
-
-## 12. Errores comunes
-
-### Error 401 en login
-
-Verifica que el body sea JSON y que uses:
-
-```json
-{
-  "correo": "admin@tiendajuegos.cl",
-  "password": "password"
-}
-```
-
-Tambien verifica que el header sea:
-
-```text
-Content-Type: application/json
-```
-
-### Gateway devuelve 500 o se queda cargando
-
-Reinicia en este orden:
-
-1. `eureka`
-2. microservicios
-3. `api-gateway`
-
-Tambien verifica en:
-
-```text
-http://localhost:8761
-```
-
-que todos los servicios esten `UP`.
-
-### Un servicio no aparece en Eureka
-
-Detenlo y levantalo otra vez. Si sigue sin aparecer, revisa que tenga:
-
-```properties
-eureka.client.service-url.defaultZone=http://localhost:8761/eureka/
-eureka.instance.hostname=localhost
-eureka.instance.prefer-ip-address=false
-```
-
-### Flyway no crea la base
-
-Verifica que MySQL este activo en XAMPP.
-
-El datasource usa:
-
-```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/tiendajuegos?createDatabaseIfNotExist=true
-```
-
-### Error de MariaDB mysql.proc
-
-Si aparece un error parecido a:
-
-```text
-Column count of mysql.proc is wrong
-Please use mysql_upgrade
-```
-
-Ejecuta:
+Aumentar stock:
 
 ```bash
-/Applications/XAMPP/xamppfiles/bin/mysql_upgrade -u root --force --force
+curl -X PUT http://localhost:8080/inventario/videojuego/1/entrada \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cantidad": 5
+  }'
 ```
 
-Despues reinicia MySQL desde XAMPP.
+## Configuracion por Variables de Entorno
 
-## 13. Comandos utiles
+Puedes cambiar configuraciones sin editar los archivos usando variables de entorno.
 
-Compilar un microservicio sin tests:
+Ejemplos:
 
 ```bash
-./mvnw package -DskipTests
+export DB_HOST=localhost
+export DB_PORT=3306
+export DB_USER=root
+export DB_PASSWORD=mi_password
+export EUREKA_SERVER_URL=http://localhost:8761/eureka/
+export CONFIG_SERVER_URL=http://localhost:8888
 ```
 
-Levantar un microservicio por consola:
+Tambien puedes fijar puertos especificos:
 
 ```bash
-./mvnw spring-boot:run
+export VIDEOJUEGOS_PORT=8081
+export USUARIOS_PORT=8082
+export AUTHENTICATION_PORT=8083
+export CARRITO_PORT=8084
+export PAGOS_PORT=8085
+export PEDIDOS_PORT=8086
+export RESENAS_PORT=8087
+export INVENTARIO_PORT=8088
 ```
 
-Ver si Config Server responde:
+## Validaciones y Reglas
 
-```bash
-curl http://localhost:8888/usuarios/default
-```
+- Los correos de usuario deben ser unicos.
+- Las passwords se guardan encriptadas con BCrypt.
+- Los videojuegos deben tener precio mayor a 0.
+- El carrito valida que el videojuego exista antes de agregarlo.
+- El pago solo se puede crear si el carrito tiene total mayor a 0.
+- Al crear un pago se vacia el carrito.
+- Pedidos y resenas validan que el usuario exista.
+- Inventario valida que el videojuego exista.
+- No se puede disminuir stock por debajo de 0.
 
-Ver si Eureka responde:
+## Consideraciones Importantes
 
-```bash
-curl http://localhost:8761/eureka/apps
-```
+- No hay frontend incluido; el sistema se consume por API REST.
+- No hay autenticacion con JWT.
+- El API Gateway no aplica seguridad; solo enruta.
+- El pago no descuenta inventario automaticamente.
+- El pago no crea pedido automaticamente.
+- Cada microservicio tiene su propia base de datos.
+- La comunicacion interna entre microservicios se hace con OpenFeign y Eureka.
+- Si un microservicio no aparece en Eureka, el gateway no podra enrutar hacia el.
 
-## 14. Nota final
+## Problemas Comunes
 
-Si cambias un archivo dentro de `config-microservicios`, debes reiniciar el
-microservicio afectado para que lea la configuracion nueva.
+### El gateway responde error al llamar una ruta
 
-Para probar desde Postman, usa siempre el gateway:
+Revisar que:
+
+- Eureka este levantado.
+- Config Server este levantado.
+- El microservicio correspondiente este registrado en Eureka.
+- El gateway este levantado despues de Config Server.
+
+### Un microservicio no inicia por base de datos
+
+Revisar que:
+
+- MySQL este activo.
+- El usuario y password sean correctos.
+- El puerto sea `3306`.
+- El usuario tenga permisos para crear bases de datos.
+
+### Config Server no encuentra configuracion
+
+El Config Server busca archivos en:
 
 ```text
-http://localhost:8080
+./config-microservicios
+../config-microservicios
 ```
+
+Por eso es recomendable ejecutarlo desde la carpeta `config-server`.
+
+### Las rutas internas fallan con Feign
+
+Revisar que el servicio destino este levantado y registrado en Eureka. Por ejemplo:
+
+- `carrito` necesita `videojuegos`.
+- `pagos` necesita `carrito`.
+- `authentication` necesita `usuarios`.
+- `pedidos` necesita `usuarios`.
+- `resenas` necesita `usuarios`.
+- `inventario` necesita `videojuegos`.
+
+## Resumen de Dependencias entre Microservicios
+
+| Servicio | Depende de |
+| --- | --- |
+| `authentication` | `usuarios` |
+| `carrito` | `videojuegos` |
+| `pagos` | `carrito` |
+| `pedidos` | `usuarios` |
+| `resenas` | `usuarios` |
+| `inventario` | `videojuegos` |
+| `api-gateway` | Eureka y todos los servicios registrados |
+
+## Estado del Proyecto
+
+El proyecto esta preparado como backend REST de microservicios para una tienda de videojuegos. Permite:
+
+- Gestionar catalogo de videojuegos.
+- Gestionar usuarios.
+- Registrar e iniciar sesion.
+- Gestionar carrito.
+- Generar pagos.
+- Gestionar pedidos.
+- Gestionar resenas.
+- Gestionar inventario.
+- Consultar reportes basicos por fecha, precio, puntuacion y stock.
+
