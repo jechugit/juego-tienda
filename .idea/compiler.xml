@@ -22,13 +22,18 @@
         <module name="carrito" />
         <module name="authentication" />
       </profile>
-      <profile name="Annotation profile for videojuegos" enabled="true">
+      <profile name="Annotation profile for usuarios" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="false">
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.46/lombok-1.18.46.jar" />
         </processorPath>
+        <module name="resenas" />
+        <module name="pedidos" />
+        <module name="usuarios" />
+        <module name="pagos" />
+        <module name="inventario" />
         <module name="videojuegos" />
       </profile>
     </annotationProcessing>
@@ -40,6 +45,11 @@
       <module name="carrito" options="-parameters" />
       <module name="config-server" options="-parameters" />
       <module name="eureka" options="-parameters" />
+      <module name="inventario" options="-parameters" />
+      <module name="pagos" options="-parameters" />
+      <module name="pedidos" options="-parameters" />
+      <module name="resenas" options="-parameters" />
+      <module name="usuarios" options="-parameters" />
       <module name="videojuegos" options="-parameters" />
     </option>
   </component>

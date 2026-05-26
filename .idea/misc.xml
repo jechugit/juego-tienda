@@ -10,6 +10,11 @@
         <option value="$PROJECT_DIR$/config-server/pom.xml" />
         <option value="$PROJECT_DIR$/eureka/pom.xml" />
         <option value="$PROJECT_DIR$/videojuegos/pom.xml" />
+        <option value="$PROJECT_DIR$/inventario/pom.xml" />
+        <option value="$PROJECT_DIR$/pagos/pom.xml" />
+        <option value="$PROJECT_DIR$/pedidos/pom.xml" />
+        <option value="$PROJECT_DIR$/resenas/pom.xml" />
+        <option value="$PROJECT_DIR$/usuarios/pom.xml" />
       </list>
     </option>
   </component>

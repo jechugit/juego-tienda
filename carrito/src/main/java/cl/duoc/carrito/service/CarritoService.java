@@ -1,10 +1,15 @@
 package cl.duoc.carrito.service;
 
+import cl.duoc.carrito.client.ResenaClient;
+import cl.duoc.carrito.client.UsuarioClient;
 import cl.duoc.carrito.client.VideoJuegoClient;
 import cl.duoc.carrito.dto.ActualizarCantidadRequest;
 import cl.duoc.carrito.dto.AgregarItemCarritoRequest;
 import cl.duoc.carrito.dto.ItemCarritoResponse;
+import cl.duoc.carrito.dto.ResenaCarritoResponse;
+import cl.duoc.carrito.dto.ResenaResponse;
 import cl.duoc.carrito.dto.ResumenCarritoResponse;
+import cl.duoc.carrito.dto.UsuarioResponse;
 import cl.duoc.carrito.dto.VideoJuegoResponse;
 import cl.duoc.carrito.model.ItemCarrito;
 import cl.duoc.carrito.repository.ItemCarritoRepository;
@@ -14,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,10 +27,18 @@ import java.util.Optional;
 public class CarritoService {
     private final ItemCarritoRepository itemCarritoRepository;
     private final VideoJuegoClient videoJuegoClient;
+    private final UsuarioClient usuarioClient;
+    private final ResenaClient resenaClient;
 
-    public CarritoService(ItemCarritoRepository itemCarritoRepository, VideoJuegoClient videoJuegoClient) {
+    public CarritoService(
+            ItemCarritoRepository itemCarritoRepository,
+            VideoJuegoClient videoJuegoClient,
+            UsuarioClient usuarioClient,
+            ResenaClient resenaClient) {
         this.itemCarritoRepository = itemCarritoRepository;
         this.videoJuegoClient = videoJuegoClient;
+        this.usuarioClient = usuarioClient;
+        this.resenaClient = resenaClient;
     }
 
     public List<ItemCarrito> listarPorUsuario(Long usuarioId) {
@@ -32,8 +46,10 @@ public class CarritoService {
     }
 
     public List<ItemCarritoResponse> listarPorUsuarioConVideojuego(Long usuarioId) {
+        String nombreUsuario = obtenerNombreUsuario(usuarioId);
+        List<ResenaResponse> resenasUsuario = obtenerResenasUsuario(usuarioId);
         return listarPorUsuario(usuarioId).stream()
-                .map(this::toResponse)
+                .map(item -> toResponse(item, nombreUsuario, resenasUsuario))
                 .toList();
     }
 
@@ -47,15 +63,17 @@ public class CarritoService {
 
     public ResumenCarritoResponse obtenerResumen(Long usuarioId) {
         List<ItemCarrito> items = listarPorUsuario(usuarioId);
+        String nombreUsuario = obtenerNombreUsuario(usuarioId);
+        List<ResenaResponse> resenasUsuario = obtenerResenasUsuario(usuarioId);
         List<ItemCarritoResponse> itemsConVideojuego = items.stream()
-                .map(this::toResponse)
+                .map(item -> toResponse(item, nombreUsuario, resenasUsuario))
                 .toList();
         Integer total = items.stream()
                 .map(ItemCarrito::getSubtotal)
                 .filter(subtotal -> subtotal != null)
                 .reduce(0, Integer::sum);
 
-        return new ResumenCarritoResponse(usuarioId, itemsConVideojuego, total);
+        return new ResumenCarritoResponse(usuarioId, nombreUsuario, itemsConVideojuego, total);
     }
 
     @Transactional
@@ -133,13 +151,20 @@ public class CarritoService {
     }
 
     private ItemCarritoResponse toResponse(ItemCarrito item) {
+        return toResponse(item, obtenerNombreUsuario(item.getUsuarioId()), obtenerResenasUsuario(item.getUsuarioId()));
+    }
+
+    private ItemCarritoResponse toResponse(ItemCarrito item, String nombreUsuario, List<ResenaResponse> resenasUsuario) {
         String nombreVideojuego = obtenerNombreVideojuego(item.getVideojuegoId());
+        ResenaCarritoResponse resena = buscarResenaDelUsuario(resenasUsuario, nombreVideojuego);
 
         return new ItemCarritoResponse(
                 item.getId(),
                 item.getUsuarioId(),
+                nombreUsuario,
                 item.getVideojuegoId(),
                 nombreVideojuego,
+                resena,
                 item.getCantidad(),
                 item.getPrecioUnitario(),
                 item.getSubtotal(),
@@ -155,5 +180,69 @@ public class CarritoService {
         } catch (FeignException exception) {
             return "Videojuego no disponible";
         }
+    }
+
+    private List<ResenaResponse> obtenerResenasUsuario(Long usuarioId) {
+        try {
+            List<ResenaResponse> resenas = resenaClient.listarPorUsuario(usuarioId);
+            return resenas == null ? List.of() : resenas;
+        } catch (FeignException exception) {
+            return List.of();
+        }
+    }
+
+    private ResenaCarritoResponse buscarResenaDelUsuario(List<ResenaResponse> resenasUsuario, String nombreVideojuego) {
+        if (nombreVideojuego == null || nombreVideojuego.isBlank()) {
+            return null;
+        }
+
+        return resenasUsuario.stream()
+                .filter(resena -> mismoNombreJuego(resena.nombreJuego(), nombreVideojuego))
+                .max(Comparator.comparing(
+                        ResenaResponse::fechaResena,
+                        Comparator.nullsFirst(Comparator.naturalOrder())))
+                .map(this::toResenaCarritoResponse)
+                .orElse(null);
+    }
+
+    private boolean mismoNombreJuego(String nombreResena, String nombreVideojuego) {
+        return nombreResena != null
+                && nombreResena.trim().equalsIgnoreCase(nombreVideojuego.trim());
+    }
+
+    private ResenaCarritoResponse toResenaCarritoResponse(ResenaResponse resena) {
+        return new ResenaCarritoResponse(
+                resena.id(),
+                resena.comentario(),
+                resena.puntuacion(),
+                resena.fechaResena()
+        );
+    }
+
+    private String obtenerNombreUsuario(Long usuarioId) {
+        try {
+            UsuarioResponse usuario = usuarioClient.buscarPorId(usuarioId);
+            return formatearNombreUsuario(usuario);
+        } catch (FeignException.NotFound exception) {
+            return "Usuario no encontrado";
+        } catch (FeignException exception) {
+            return "Usuario no disponible";
+        }
+    }
+
+    private String formatearNombreUsuario(UsuarioResponse usuario) {
+        String nombre = usuario.nombre() == null ? "" : usuario.nombre().trim();
+        String apellido = usuario.apellido() == null ? "" : usuario.apellido().trim();
+        String nombreCompleto = (nombre + " " + apellido).trim();
+
+        if (!nombreCompleto.isBlank()) {
+            return nombreCompleto;
+        }
+
+        if (usuario.correo() != null && !usuario.correo().isBlank()) {
+            return usuario.correo();
+        }
+
+        return "Usuario " + usuario.id();
     }
 }
